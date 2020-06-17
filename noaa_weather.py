@@ -4,7 +4,11 @@ import os
 from collections import OrderedDict
 import gzip
 
+import geocoder
 from ish_parser import ish_report, ish_reportException
+
+DIR_THIS_SCRIPT = os.path.dirname(os.path.realpath(__file__))
+
 
 # Function to download raw
 def ftp_to_raw_entry_list(file_name_noaa, file_name_local, ftp):
@@ -91,6 +95,41 @@ def download_noaa_weather(station_list_csv_path, years=[2019], work_dir='./'):
     ftp.quit()
     print('Weather download finished. Logout FTP.')
 
+################################################################################
+# Some utility functions
+################################################################################
+def geocode_address(input_address):
+    """
+    Geocode an address to (lat, lon)
+    """
+    print('Input address: ' + input_address)
+    try:
+        print('Using geo-coding result from ArcGIS')
+        latlng = geocoder.arcgis(input_address).latlng
+        return latlng
+    except:
+        pass
+
+    try:
+        print('Using geo-coding result from OpenStreetMap')
+        latlng = geocoder.osm(input_address).latlng
+        return latlng
+    except:
+        pass
+
+    try:
+        print('Using geo-coding result from Ottawa')
+        latlng = geocoder.ottawa(input_address).latlng
+        return latlng
+    except:
+        pass
+
+    try:
+        print('Using geo-coding result from Yandex')
+        latlng = [float(s) for s in geocoder.yandex(input_address).latlng]
+        return latlng
+    except:
+        pass
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     # Get radians from decimals
@@ -101,7 +140,9 @@ def haversine_distance(lat1, lon1, lat2, lon2):
     distance = 2 * 6371 * np.arcsin(np.sqrt(temp))
     return (distance)
 
-def find_closest_weather_station(tuple_lat_lon, df_weather_station_list):
+def find_closest_weather_station(tuple_lat_lon, 
+    df_weather_station_list=pd.read_csv(os.path.join(DIR_THIS_SCRIPT, 'station_list.csv'))
+    ):
     """
     Finds a closest weather station.
     
@@ -128,12 +169,13 @@ def find_closest_weather_station(tuple_lat_lon, df_weather_station_list):
     
     return closest_weather_station_ID, closest_weather_station_name
 
-
 if __name__ == '__main__':
     work_dir = os.path.dirname(os.path.abspath( __file__ ))
     # Download weather file for all weather stations in the station_list.csv for the specified years 
-    download_noaa_weather('station_list.csv', [2019, 2020], work_dir)
+    # download_noaa_weather('station_list.csv', [2019, 2020], work_dir)
 
     # Utility function: find the geographically closest station for a (lat, lon) coordinate
     df_stations = pd.read_csv('station_list.csv')
     print(find_closest_weather_station((37.879420, -122.253911), df_stations))
+    print(find_closest_weather_station((26.572505, 101.722059), df_stations))
+    print(find_closest_weather_station((33.507706, -7.454171), df_stations))
