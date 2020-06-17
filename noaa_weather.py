@@ -41,6 +41,25 @@ get_datetime_from_rpt = lambda x: ish_report().loads(x).datetime
 get_T_C_from_rpt = lambda x: ish_report().loads(x).air_temperature.get_numeric()
 get_T_F_from_rpt = lambda x: ish_report().loads(x).air_temperature.get_fahrenheit().get_numeric()
 
+
+def download_noaa_weather_element(station_ID, year, ftp_instance):
+    ftp_path = '/pub/data/noaa/' + str(year)
+    file_name_noaa = station_ID + '-' + str(year) + '.gz'
+    raw_file_out_dir = work_dir
+    file_name_local = os.path.join(raw_file_out_dir, station_ID + '-' + str(year) + '.gz')
+    ftp_instance.cwd(ftp_path)
+    v_noaa_raw_elements = ftp_to_raw_entry_list(file_name_noaa, file_name_local, ftp_instance)
+    v_noaa_datetime = list(map(get_datetime_from_rpt, v_noaa_raw_elements))
+    v_noaa_T_F = list(map(get_T_C_from_rpt, v_noaa_raw_elements))
+    df_out = pd.DataFrame(OrderedDict({
+        'Datetime': v_noaa_datetime,
+        'Temperature': pd.to_numeric(v_noaa_T_F, errors='coerce'),
+    }))
+    # Clean the raw zip file
+    os.remove(file_name_local)
+    return(df_out)
+
+
 # Function to wrap all
 def download_noaa_weather(station_list_csv_path, years=[2019], work_dir='./'):
     """
@@ -71,21 +90,8 @@ def download_noaa_weather(station_list_csv_path, years=[2019], work_dir='./'):
         for i, station_ID in enumerate(df_stations['StationID']):
             try:
                 print(f"Downloading {year} weather data for station: {station_ID} -- ({i}/{n_total_stations}) -- {round(i/n_total_stations*100, 2)}%")
-                ftp_path = '/pub/data/noaa/' + str(year)
-                file_name_noaa = station_ID + '-' + str(year) + '.gz'
-                raw_file_out_dir = work_dir
-                file_name_local = os.path.join(raw_file_out_dir, station_ID + '-' + str(year) + '.gz')
-                ftp.cwd(ftp_path)
-                v_noaa_raw_elements = ftp_to_raw_entry_list(file_name_noaa, file_name_local, ftp)
-                v_noaa_datetime = list(map(get_datetime_from_rpt, v_noaa_raw_elements))
-                v_noaa_T_F = list(map(get_T_C_from_rpt, v_noaa_raw_elements))
-                df_out = pd.DataFrame(OrderedDict({
-                    'Datetime': v_noaa_datetime,
-                    'Temperature': pd.to_numeric(v_noaa_T_F, errors='coerce'),
-                }))
+                df_out = download_noaa_weather_element(station_ID, year, ftp)
                 df_out.to_csv(os.path.join(year_sub_dir, str(year) + "_" + station_ID + ".csv"), index = False)
-                 # Clean the raw zip file
-                os.remove(file_name_local)
             except:
                 print(f"Failed to download weather data for station: {station_ID}")
                 v_missing.append(station_ID)
@@ -102,30 +108,25 @@ def geocode_address(input_address):
     """
     Geocode an address to (lat, lon)
     """
-    print('Input address: ' + input_address)
     try:
-        print('Using geo-coding result from ArcGIS')
         latlng = geocoder.arcgis(input_address).latlng
         return latlng
     except:
         pass
 
     try:
-        print('Using geo-coding result from OpenStreetMap')
         latlng = geocoder.osm(input_address).latlng
         return latlng
     except:
         pass
 
     try:
-        print('Using geo-coding result from Ottawa')
         latlng = geocoder.ottawa(input_address).latlng
         return latlng
     except:
         pass
 
     try:
-        print('Using geo-coding result from Yandex')
         latlng = [float(s) for s in geocoder.yandex(input_address).latlng]
         return latlng
     except:
@@ -171,11 +172,25 @@ def find_closest_weather_station(tuple_lat_lon,
 
 if __name__ == '__main__':
     work_dir = os.path.dirname(os.path.abspath( __file__ ))
-    # Download weather file for all weather stations in the station_list.csv for the specified years 
+
+    # e.g.1, Utility function: find the geographically closest station for a (lat, lon) coordinate
+    df_stations = pd.read_csv('station_list.csv')
+    str_address = 'Lawrence Berkeley National Lab'
+    station_id, station_name = find_closest_weather_station(geocode_address(str_address), df_stations)
+    print(f'The closest NOAA weather station for "{str_address}" is ID: {station_id}, Name: {station_name}')
+
+
+    # e.g.2, download weather data for a single station and year 
+    # from ftplib import FTP
+    # ftp=FTP('ftp.ncdc.noaa.gov')
+    # ftp.login()
+    # print('---> NOAA FTP login succeeded.')
+    # print(download_noaa_weather_element('722780-23183', 2018, ftp).describe())
+    # ftp.quit()
+    # print('---> NOAA FTP Logout succeeded.')
+    
+    # e.g.3, Download weather file for all weather stations in the station_list.csv for the specified years 
     # download_noaa_weather('station_list.csv', [2019, 2020], work_dir)
 
-    # Utility function: find the geographically closest station for a (lat, lon) coordinate
-    df_stations = pd.read_csv('station_list.csv')
-    print(find_closest_weather_station((37.879420, -122.253911), df_stations))
-    print(find_closest_weather_station((26.572505, 101.722059), df_stations))
-    print(find_closest_weather_station((33.507706, -7.454171), df_stations))
+
+    
