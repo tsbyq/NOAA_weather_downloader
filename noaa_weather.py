@@ -137,6 +137,7 @@ def add_weather_to_ts(df_ts, noaa_station_id, dir_all_weather=None, new_cols=Non
 
     # Merge the weather data to the time-series data
     df_ts_weather = pd.merge_asof(df_ts, df_weather.dropna().sort_values('Datetime'), on='Datetime', tolerance=pd.Timedelta('3600s'))
+    df_ts_weather = df_ts_weather.interpolate(method='linear', limit_direction='both', limit=6, order=2)  # Interpolate to fill missing values
     return df_ts_weather if new_cols==None else df_ts_weather[new_cols]
 
 
