@@ -45,7 +45,7 @@ get_T_F_from_rpt = lambda x: ish_report().loads(x).air_temperature.get_fahrenhei
 def download_noaa_weather_element(station_ID, year, ftp_instance):
     ftp_path = '/pub/data/noaa/' + str(year)
     file_name_noaa = station_ID + '-' + str(year) + '.gz'
-    raw_file_out_dir = work_dir
+    raw_file_out_dir = ''
     file_name_local = os.path.join(raw_file_out_dir, station_ID + '-' + str(year) + '.gz')
     ftp_instance.cwd(ftp_path)
     v_noaa_raw_elements = ftp_to_raw_entry_list(file_name_noaa, file_name_local, ftp_instance)
@@ -100,6 +100,45 @@ def download_noaa_weather(station_list_csv_path, years=[2019], work_dir='./'):
         
     ftp.quit()
     print('Weather download finished. Logout FTP.')
+
+
+def add_weather_to_ts(df_ts, noaa_station_id, dir_all_weather=None, new_cols=None, ftp_instance=None):
+    '''
+    This function add weather data to a dataframe of time-series data. The weather data is from the specified NOAA weather station. 
+    If the directory of pre-downloaded weather files is not provided, it will download the weather data from NOAA on the fly.   
+    '''
+    if dir_all_weather==None:
+        print('Will download from NOAA')
+        if ftp_instance == None:
+            from ftplib import FTP
+            ftp_instance=FTP('ftp.ncdc.noaa.gov')
+            ftp_instance.login()
+            print('NOAA FTP login succeeded.')
+        for i, year in enumerate(set(pd.to_datetime(df_ts['Datetime']).dt.year)):
+            df_weather_temp = download_noaa_weather_element(noaa_station_id, year, ftp_instance)
+            df_weather_temp['Datetime'] = pd.to_datetime(df_weather_temp['Datetime'], format='%Y-%m-%d %H:%M:%S').dt.tz_localize(None)
+            if i == 0:
+                df_weather = df_weather_temp
+            else:
+                df_weather = df_weather.append(df_weather_temp)
+        ftp_instance.quit()
+        print('---> NOAA FTP Logout succeeded.')
+    else:
+        print('Use pre-downloaded weather data')
+        # Get the raw weather data
+        for i, year in enumerate(set(pd.to_datetime(df_ts['Datetime']).dt.year)):
+            dir_weather_csv = os.path.join(dir_all_weather, str(year), f"{year}_{noaa_station_id}.csv")
+            df_weather_temp = pd.read_csv(dir_weather_csv, parse_dates=True)
+            df_weather_temp['Datetime'] = pd.to_datetime(df_weather_temp['Datetime'], format='%Y-%m-%d %H:%M:%S').dt.tz_localize(None)
+            if i == 0:
+                df_weather = df_weather_temp
+            else:
+                df_weather = df_weather.append(df_weather_temp)
+
+    # Merge the weather data to the time-series data
+    df_ts_weather = pd.merge_asof(df_ts, df_weather.dropna().sort_values('Datetime'), on='Datetime', tolerance=pd.Timedelta('3600s'))
+    return df_ts_weather if new_cols==None else df_ts_weather[new_cols]
+
 
 ################################################################################
 # Some utility functions
