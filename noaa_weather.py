@@ -141,7 +141,8 @@ def add_weather_to_ts(df_ts, noaa_station_id, dir_all_weather=None, new_cols=Non
     return df_ts_weather if new_cols==None else df_ts_weather[new_cols]
 
 
-################################################################################
+################################################################################
+
 # Some utility functions
 ################################################################################
 def geocode_address(input_address):
@@ -214,10 +215,10 @@ if __name__ == '__main__':
     work_dir = os.path.dirname(os.path.abspath( __file__ ))
 
     # e.g.1, Utility function: find the geographically closest station for a (lat, lon) coordinate
-    df_stations = pd.read_csv('station_list.csv')
-    str_address = 'Lawrence Berkeley National Lab'
-    station_id, station_name = find_closest_weather_station(geocode_address(str_address), df_stations)
-    print(f'The closest NOAA weather station for "{str_address}" is ID: {station_id}, Name: {station_name}')
+    # df_stations = pd.read_csv('station_list.csv')
+    # str_address = 'Lawrence Berkeley National Lab'
+    # station_id, station_name = find_closest_weather_station(geocode_address(str_address), df_stations)
+    # print(f'The closest NOAA weather station for "{str_address}" is ID: {station_id}, Name: {station_name}')
 
 
     # e.g.2, download weather data for a single station and year 
@@ -231,6 +232,3 @@ if __name__ == '__main__':
     
     # e.g.3, Download weather file for all weather stations in the station_list.csv for the specified years 
     # download_noaa_weather('station_list.csv', [2019, 2020], work_dir)
-
-
-    
