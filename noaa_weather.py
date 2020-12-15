@@ -41,6 +41,13 @@ get_datetime_from_rpt = lambda x: ish_report().loads(x).datetime
 get_T_C_from_rpt = lambda x: ish_report().loads(x).air_temperature.get_numeric()
 get_T_F_from_rpt = lambda x: ish_report().loads(x).air_temperature.get_fahrenheit().get_numeric()
 
+def get_vars(rpt):
+    x = ish_report().loads(rpt)
+    ls = x.formatted().split('\n')[1:-1]
+    keys = [ele.split(': ')[0] for ele in ls]
+    values = [ele.split(': ')[1].strip() for ele in ls]
+    dict_vals = dict(zip(keys, values))
+    return dict_vals
 
 def download_noaa_weather_element(station_ID, year, ftp_instance):
     ftp_path = '/pub/data/noaa/' + str(year)
@@ -50,18 +57,31 @@ def download_noaa_weather_element(station_ID, year, ftp_instance):
     ftp_instance.cwd(ftp_path)
     v_noaa_raw_elements = ftp_to_raw_entry_list(file_name_noaa, file_name_local, ftp_instance)
     v_noaa_datetime = list(map(get_datetime_from_rpt, v_noaa_raw_elements))
-    v_noaa_T_F = list(map(get_T_C_from_rpt, v_noaa_raw_elements))
+    v_noaa_T_C = list(map(get_T_C_from_rpt, v_noaa_raw_elements))
     df_out = pd.DataFrame(OrderedDict({
         'Datetime': v_noaa_datetime,
-        'Temperature': pd.to_numeric(v_noaa_T_F, errors='coerce'),
+        'Temperature': pd.to_numeric(v_noaa_T_C, errors='coerce'),
     }))
     # Clean the raw zip file
     os.remove(file_name_local)
     return(df_out)
 
 
+def download_noaa_weather_element_detailed(station_ID, year, ftp_instance):
+    ftp_path = '/pub/data/noaa/' + str(year)
+    file_name_noaa = station_ID + '-' + str(year) + '.gz'
+    raw_file_out_dir = ''
+    file_name_local = os.path.join(raw_file_out_dir, station_ID + '-' + str(year) + '.gz')
+    ftp_instance.cwd(ftp_path)
+    arr_noaa_raw_elements = pd.Series(ftp_to_raw_entry_list(file_name_noaa, file_name_local, ftp_instance))
+    df_out = pd.DataFrame(list(arr_noaa_raw_elements.apply(get_vars)))
+    # Clean the raw zip file
+    os.remove(file_name_local)
+    return(df_out)
+
+
 # Function to wrap all
-def download_noaa_weather(station_list_csv_path, years=[2019], work_dir='./'):
+def download_noaa_weather(station_list_csv_path, years=[2019], work_dir='./', detailed=False):
     """
     { item_description }
     """
@@ -90,7 +110,10 @@ def download_noaa_weather(station_list_csv_path, years=[2019], work_dir='./'):
         for i, station_ID in enumerate(df_stations['StationID']):
             try:
                 print(f"Downloading {year} weather data for station: {station_ID} -- ({i}/{n_total_stations}) -- {round(i/n_total_stations*100, 2)}%")
-                df_out = download_noaa_weather_element(station_ID, year, ftp)
+                if detailed:
+                    df_out = download_noaa_weather_element_detailed(station_ID, year, ftp)
+                else:
+                    df_out = download_noaa_weather_element(station_ID, year, ftp)
                 df_out.to_csv(os.path.join(year_sub_dir, str(year) + "_" + station_ID + ".csv"), index = False)
             except:
                 print(f"Failed to download weather data for station: {station_ID}")
@@ -220,15 +243,17 @@ if __name__ == '__main__':
     # station_id, station_name = find_closest_weather_station(geocode_address(str_address), df_stations)
     # print(f'The closest NOAA weather station for "{str_address}" is ID: {station_id}, Name: {station_name}')
 
-
     # e.g.2, download weather data for a single station and year 
-    # from ftplib import FTP
-    # ftp=FTP('ftp.ncdc.noaa.gov')
-    # ftp.login()
-    # print('---> NOAA FTP login succeeded.')
+    from ftplib import FTP
+    ftp=FTP('ftp.ncdc.noaa.gov')
+    ftp.login()
+    print('---> NOAA FTP login succeeded.')
     # print(download_noaa_weather_element('722780-23183', 2018, ftp).describe())
-    # ftp.quit()
-    # print('---> NOAA FTP Logout succeeded.')
+    df_data = download_noaa_weather_element_detailed('994033-99999', 2018, ftp)
+    print(df_data.describe())
+    ftp.quit()
+    print('---> NOAA FTP Logout succeeded.')
     
     # e.g.3, Download weather file for all weather stations in the station_list.csv for the specified years 
-    # download_noaa_weather('station_list.csv', [2019, 2020], work_dir)
+    # download_noaa_weather('station_list_test.csv', [2019, 2020], work_dir, detailed=True)
+    # download_noaa_weather('station_list_test.csv', [2019], work_dir, detailed=True)
