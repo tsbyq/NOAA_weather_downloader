@@ -45,7 +45,13 @@ def get_vars(rpt):
     x = ish_report().loads(rpt)
     ls = x.formatted().split('\n')[1:-1]
     keys = [ele.split(': ')[0] for ele in ls]
-    values = [ele.split(': ')[1].strip() for ele in ls]
+    values = [ele.split(': ')[1] for ele in ls]
+    i_p = keys.index('Precipitation')
+    i_cc = keys.index('Cloud Coverage')
+    i_cc_2 = keys.index('Cloud Summation')
+    values[i_p] = ls[i_p].split('Precipitation: ')[1]
+    values[i_cc] = ls[i_cc].split('Cloud Coverage: ')[1]
+    values[i_cc_2] = ls[i_cc_2].split('Cloud Summation: ')[1]
     dict_vals = dict(zip(keys, values))
     return dict_vals
 
@@ -75,6 +81,7 @@ def download_noaa_weather_element_detailed(station_ID, year, ftp_instance):
     ftp_instance.cwd(ftp_path)
     arr_noaa_raw_elements = pd.Series(ftp_to_raw_entry_list(file_name_noaa, file_name_local, ftp_instance))
     df_out = pd.DataFrame(list(arr_noaa_raw_elements.apply(get_vars)))
+    df_out = df_out.drop(['Weather Station', 'Elevation'], axis=1)
     # Clean the raw zip file
     os.remove(file_name_local)
     return(df_out)
@@ -249,7 +256,9 @@ if __name__ == '__main__':
     ftp.login()
     print('---> NOAA FTP login succeeded.')
     # print(download_noaa_weather_element('722780-23183', 2018, ftp).describe())
-    df_data = download_noaa_weather_element_detailed('994033-99999', 2018, ftp)
+    # df_data = download_noaa_weather_element_detailed('994033-99999', 2018, ftp)
+    df_data = download_noaa_weather_element_detailed('724930-23230', 2018, ftp)
+    df_data.to_csv('demonstration.csv', index=False)
     print(df_data.describe())
     ftp.quit()
     print('---> NOAA FTP Logout succeeded.')
